@@ -1,0 +1,314 @@
+import numpy as np
+import pygame
+from pygame.locals import *
+import random
+pygame.init()
+
+
+#Steine die zur Wahl stehen, Hero und Smashboy einzeln weil sonst inhomogenes Array, was zu einem Fehler führt
+stein_auswahl=np.array([[[0,0,1],
+                         [1,1,1]],
+                        [[1,0,0],
+                         [1,1,1]],
+                        [[1,1,0],
+                         [0,1,1]],
+                        [[0,1,1],
+                         [1,1,0]],
+                        [[0,1,0],
+                         [1,1,1]]])
+stein_hero=np.array([[1,1,1,1]])
+stein_smashboy=np.array([[1,1],
+                         [1,1]])
+leere_reihe=np.array([[0,0,0,0,0,0,0,0,0,0]])
+
+
+#Variablen definieren
+Multiplikator=20
+W=10
+H=20
+FPS=1
+FPS_alt=FPS
+steinaktiv=True
+spielaktiv=True
+stein_schnell=False
+punkte=0
+level=1
+
+#Spielfeld anlegen und mit Nullen füllen
+spielfeld=np.zeros((H,W), dtype=int)
+
+def stein_runter():
+    global stein_schnell
+    global FPS_alt
+    global FPS
+    stein_schnell=True
+    FPS_alt=FPS
+    FPS=20
+
+def reihe_vollst():
+    """
+    Überprüfung ob eine Reihe vollständig ist (Summe entlang x-Achse=10)
+    Return Index der Reihen deren Summe=10 ist
+    """
+    reihe=np.sum(spielfeld, axis=1, dtype=np.int32)
+    print(reihe)
+    indizes=np.array([[]], dtype=int)
+    for n in range(len(reihe)):
+        if reihe[n]>=10:
+            indizes=np.append(indizes, n)
+    print(indizes)
+    return indizes
+
+def kollision_boden():
+    """
+    Überprüfung ob Kollision mit Boden
+    """
+    if y_pos==H-y_size:
+        return True
+        print("Kollision Boden")
+    else:
+        return False
+
+def kollision():
+    """
+    Kollisionsabfrage mit anderen Steinen
+    return True falls Kollision, return False wenn Schleife ohne Kollision durchlaufen wurde
+    """
+    for y1 in range(len(stein)):
+        if y1+1<y_size:
+            continue
+        else:
+            for x1 in range(len(stein[0])):
+                if stein[y1][x1]==0 and stein[y1-1][x1]==0:
+                    feld_y=y_pos-y1
+                    feld_x=x_pos+x1
+                    if spielfeld[feld_y][feld_x]==1:
+                        print("Kollision1")
+                        return True
+                    
+                elif stein[y1][x1]==0:
+                    feld_y=y_pos+y1
+                    feld_x=x_pos+x1
+                    if spielfeld[feld_y][feld_x]==1:
+                        print("Kollision2")
+                        return True 
+                try:
+                    if stein[y1][x1]==1:
+                        feld_y1=y_pos+y1
+                        feld_x1=x_pos+x1
+                        if spielfeld[feld_y1+1][feld_x1]==1:
+                            print("Kollision3")
+                            return True
+                except IndexError:
+                    print("IndexError")
+    return False
+                        
+def subAtPos(mat1, mat2, xypos):
+    """
+    Substract two matrices of different sizes in place, offset by xy coordinates
+    Usage:
+      - mat1: base matrix
+      - mat2: add this matrix to mat1
+      - xypos: tuple (x,y) containing coordinates
+    """
+    x, y = xypos
+    ysize, xsize = mat2.shape
+    xmax, ymax = (x + xsize), (y + ysize)
+    mat1[y:ymax, x:xmax] -= mat2
+    return mat1
+
+def addAtPos(mat1, mat2, xypos):
+    """
+    Add two matrices of different sizes in place, offset by xy coordinates
+    Usage:
+      - mat1: base matrix
+      - mat2: add this matrix to mat1
+      - xypos: tuple (x,y) containing coordinates
+    """
+    x, y = xypos
+    ysize, xsize = mat2.shape
+    xmax, ymax = (x + xsize), (y + ysize)
+    mat1[y:ymax, x:xmax] += mat2
+    return mat1
+
+#Farben für Pygame festlegen
+SCHWARZ = ( 0, 0, 0)
+WEISS   = ( 255, 255, 255)
+ROT     = ( 255, 0, 0)
+GRUEN   = ( 0, 255, 0)
+BLAU    = ( 0, 0, 255)
+
+#Fenster definieren
+fenster=pygame.display.set_mode((Multiplikator*W, Multiplikator*H))
+pygame.display.set_caption("Tetris in Python")
+clock=pygame.time.Clock()
+
+#Hintergrundmusik abspielen
+pygame.mixer.music.load('tetris-theme.mp3')
+pygame.mixer.music.play(-1,0.0)
+pygame.mixer.music.set_volume(.2)
+
+#Hauptschleife für aktives Spiel
+while spielaktiv==True:
+    
+   
+    #Definition von Variablen
+    steinaktiv=True
+    x_pos=3
+    y_pos=0
+    y_bewegung=1
+    pos=(x_pos, y_pos)
+    
+      
+    #Auswahl des Spielsteins und einfügen in Spielfeld
+    stein_random=random.randint(1,7)
+    if stein_random>=1 and stein_random<=5:
+        stein=random.choice(stein_auswahl)
+    elif stein_random==6:
+        stein=stein_hero
+    elif stein_random==7:
+        stein=stein_smashboy
+    spielfeld=addAtPos(spielfeld, stein, pos)
+    print(spielfeld)
+    
+    #Hauptschleife für aktuell aktiven Spielstein
+    while steinaktiv==True:
+        y_size, x_size = stein.shape
+        
+        #Beenden des Spiels durch Spieler-Input
+        for event in pygame.event.get():
+            if event.type==pygame.QUIT or event.type==pygame.KEYDOWN and event.key==pygame.K_ESCAPE:
+                print("Spieler hat das Spiel beendet")
+                steinaktiv=False
+                spielaktiv=False
+                
+            #Überprüfung auf gedrückte Taste               
+            if event.type==pygame.KEYDOWN:
+                
+                #Rotation des Spielsteins durch Spieler-Input
+                if event.key==pygame.K_UP and x_pos<=W-x_size-1 and kollision()==False:
+                    pos=(x_pos, y_pos)
+                    spielfeld=subAtPos(spielfeld,stein,pos)
+                    stein=np.rot90(stein, 1)
+                    y_size, x_size = stein.shape
+                    spielfeld=addAtPos(spielfeld,stein,pos)
+                    print(spielfeld)
+                    
+                #Bewegung des Spielsteins nach links durch Spieler-Input und Kollisionsabfrage linker Rand
+                elif event.key==pygame.K_LEFT and x_pos>=1:
+                    spielfeld=subAtPos(spielfeld,stein,pos)
+                    x_pos-=1
+                    pos=(x_pos, y_pos)
+                    spielfeld=addAtPos(spielfeld,stein,pos)
+                    print(spielfeld)
+                    
+                #Bewegung des Spielsteins nach rechts durch Spieler-Input und Kollisionsabfrage rechter Rand
+                elif event.key==pygame.K_RIGHT and x_pos<=W-x_size-1:
+                    spielfeld=subAtPos(spielfeld,stein,pos)
+                    x_pos+=1
+                    pos=(x_pos, y_pos)
+                    spielfeld=addAtPos(spielfeld,stein,pos)
+                    print(spielfeld)
+                    
+                elif event.key==pygame.K_DOWN:
+                    print("Pfeiltaste runter")
+                    stein_runter()
+
+        #Automatische Bewegung des Spielsteins nach unten
+        if y_pos<=H-(y_size+1):
+            spielfeld=subAtPos(spielfeld,stein,pos)
+            y_pos+=y_bewegung
+            pos=(x_pos, y_pos)
+            spielfeld=addAtPos(spielfeld,stein,pos)
+            print(spielfeld)
+            
+                 
+        #Kollisionsabfrage mit Boden des Spielfelds   
+        if kollision_boden():
+            stein_schnell=False
+            FPS=FPS_alt
+            punkte+=1
+            y_bewegung=0
+            steinaktiv=False
+            
+        #Kollisionsabfrage mit anderen Steinen
+        if kollision():
+            stein_schnell=False
+            FPS=FPS_alt
+            punkte+=1
+            y_bewegung=0
+            steinaktiv=False
+            
+        #Überprüfen ob eine Reihe vollständig ist
+        if (kollision() or kollision_boden()) or (kollision() and kollision_boden()):
+            reihe_entf_index=reihe_vollst()
+            for i in range(len(reihe_entf_index)):
+                if reihe_entf_index[i]:
+                    punkte+=10
+                    spielfeld=np.delete(spielfeld, reihe_entf_index[i], axis=0)
+                    spielfeld=np.vstack([leere_reihe, spielfeld])
+        
+        
+        
+        #Spiel schneller machen, mit steigender Punktzahl
+        if punkte<25 and stein_schnell==False:
+            FPS=1
+            level=1
+        elif punkte>=25 and punkte<50 and stein_schnell==False:
+            FPS=2
+            level=2
+        elif punkte>=50 and punkte<75 and stein_schnell==False:
+            FPS=3
+            level=3
+        elif punkte>=75 and punkte<100 and stein_schnell==False:
+            FPS=4
+            level=4
+        elif punkte>=100 and punkte<125 and stein_schnell==False:
+            FPS=5
+            level=5
+        elif punkte>=125 and punkte<150 and stein_schnell==False:
+            FPS=6
+            level=6
+        elif punkte>=150 and punkte<175 and stein_schnell==False:
+            FPS=7
+            level=7
+        elif punkte>=175 and punkte<200 and stein_schnell==False:
+            FPS=8
+            level=8
+        elif punkte>=200 and punkte<225 and stein_schnell==False:
+            FPS=9
+            level=9
+        elif punkte>=225 and stein_runter()==False:
+            FPS=10
+            level=10
+            
+        #Abfrage ob Spiel verloren wurde
+        if kollision() and y_pos==1:
+            print("Du hast verloren!")
+            steinaktiv=False
+            spielaktiv=False
+            break
+            
+        fenster.fill(WEISS)
+    
+    #Punktestand und Level ausgeben:
+        ausgabetext="Score: " + str(punkte)
+        font=pygame.font.SysFont(None, 20)
+        text=font.render(ausgabetext, True, SCHWARZ)
+        fenster.blit(text, [10, 10])
+        
+        text="Level: " + str(level)
+        font=pygame.font.SysFont(None, 20)
+        text=font.render(text, True, SCHWARZ)
+        fenster.blit(text, [140, 10])
+    
+    #Spielfeld/figuren zeichnen
+        for y2 in range(len(spielfeld)):
+            for x2 in range(len(spielfeld[0])):
+                if spielfeld[y2][x2]>=1:
+                    pygame.draw.rect(fenster, BLAU,[x2*Multiplikator, y2*Multiplikator, 20, 20])
+    #Fenster aktualisieren
+        pygame.display.flip()
+        clock.tick(FPS)
+    
+pygame.quit()
