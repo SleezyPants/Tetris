@@ -2,6 +2,7 @@ import numpy as np
 import pygame
 from pygame.locals import *
 import random
+import csv
 pygame.init()
 
 
@@ -30,9 +31,13 @@ FPS=1
 FPS_alt=FPS
 steinaktiv=True
 spielaktiv=True
+spiel_verloren=False
 stein_schnell=False
+global punkte
 punkte=0
 level=1
+global new_score
+new_score=[]
 
 #Spielfeld anlegen und mit Nullen füllen
 spielfeld=np.zeros((H,W), dtype=int)
@@ -51,12 +56,10 @@ def reihe_vollst():
     Return Index der Reihen deren Summe=10 ist
     """
     reihe=np.sum(spielfeld, axis=1, dtype=np.int32)
-    print(reihe)
     indizes=np.array([[]], dtype=int)
     for n in range(len(reihe)):
         if reihe[n]>=10:
             indizes=np.append(indizes, n)
-    print(indizes)
     return indizes
 
 def kollision_boden():
@@ -211,7 +214,6 @@ while spielaktiv==True:
                     print(spielfeld)
                     
                 elif event.key==pygame.K_DOWN:
-                    print("Pfeiltaste runter")
                     stein_runter()
 
         #Automatische Bewegung des Spielsteins nach unten
@@ -248,50 +250,15 @@ while spielaktiv==True:
                     spielfeld=np.delete(spielfeld, reihe_entf_index[i], axis=0)
                     spielfeld=np.vstack([leere_reihe, spielfeld])
         
-        
-        
         #Spiel schneller machen, mit steigender Punktzahl
-        if punkte<25 and stein_schnell==False:
-            FPS=1
-            level=1
-        elif punkte>=25 and punkte<50 and stein_schnell==False:
-            FPS=2
-            level=2
-        elif punkte>=50 and punkte<75 and stein_schnell==False:
-            FPS=3
-            level=3
-        elif punkte>=75 and punkte<100 and stein_schnell==False:
-            FPS=4
-            level=4
-        elif punkte>=100 and punkte<125 and stein_schnell==False:
-            FPS=5
-            level=5
-        elif punkte>=125 and punkte<150 and stein_schnell==False:
-            FPS=6
-            level=6
-        elif punkte>=150 and punkte<175 and stein_schnell==False:
-            FPS=7
-            level=7
-        elif punkte>=175 and punkte<200 and stein_schnell==False:
-            FPS=8
-            level=8
-        elif punkte>=200 and punkte<225 and stein_schnell==False:
-            FPS=9
-            level=9
-        elif punkte>=225 and stein_runter()==False:
-            FPS=10
-            level=10
-            
-        #Abfrage ob Spiel verloren wurde
-        if kollision() and y_pos==1:
-            print("Du hast verloren!")
-            steinaktiv=False
-            spielaktiv=False
-            break
-            
+        if not stein_schnell:
+            level=min(punkte, 225)//25+1
+            FPS=level
+    
+             
         fenster.fill(WEISS)
     
-    #Punktestand und Level ausgeben:
+        #Punktestand und Level ausgeben:
         ausgabetext="Score: " + str(punkte)
         font=pygame.font.SysFont(None, 20)
         text=font.render(ausgabetext, True, SCHWARZ)
@@ -302,11 +269,136 @@ while spielaktiv==True:
         text=font.render(text, True, SCHWARZ)
         fenster.blit(text, [140, 10])
     
-    #Spielfeld/figuren zeichnen
+        #Spielfeld/figuren zeichnen
         for y2 in range(len(spielfeld)):
             for x2 in range(len(spielfeld[0])):
                 if spielfeld[y2][x2]>=1:
                     pygame.draw.rect(fenster, BLAU,[x2*Multiplikator, y2*Multiplikator, 20, 20])
+        
+        #Abfrage ob Spiel verloren wurde und Spiel Neustart
+        if kollision() and y_pos==1:
+            text_verloren="Game Over!"
+            font=pygame.font.SysFont(None, 40)
+            font2=pygame.font.SysFont(None, 25)
+            text_verloren=font.render(text_verloren, True, ROT)
+            fenster.blit(text_verloren, [20, 180])
+            pygame.display.flip()
+            
+            #Input des Namens für Highscore
+            #Definition benötigter Variablen
+            input_box = pygame.Rect(40, 220, 120, 32)
+            color_inactive = pygame.Color('lightskyblue3')
+            color_active = pygame.Color('dodgerblue2')
+            color = color_inactive
+            active = False
+            name = ''
+            done = False
+            anzahl_zeichen=-1
+                        
+            while not done:
+                pygame.draw.rect(fenster, color, input_box, 2)
+                pygame.display.flip()
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT or event.type==pygame.KEYDOWN and event.key==pygame.K_ESCAPE:
+                        done = True
+                    if event.type==pygame.MOUSEBUTTONDOWN:
+                        if input_box.collidepoint(event.pos):
+                            active = not active
+                        else:
+                            active = False
+                        color = color_active if active else color_inactive
+                    if event.type == pygame.KEYDOWN:
+                        if active:
+                            if event.key == pygame.K_RETURN or anzahl_zeichen==3:
+                                print(name)
+                                new_score.append(int(punkte))
+                                new_score.append(str(name))
+                                new_score = tuple(new_score)
+                                print("New Score: ", new_score)
+                                name=""
+                                done = True
+                            elif event.key == pygame.K_BACKSPACE:
+                                name = name[:-1]
+                            else:
+                                anzahl_zeichen+=1
+                                name += event.unicode
+                    txt_surface = font.render(name, True, SCHWARZ)
+                    fenster.blit(txt_surface, (input_box.x+5, input_box.y+5))
+                    pygame.display.flip()
+                    
+            #Einlesen der Highscore Datei, Einfügen des neuen Score, Sortieren nach score und Schreiben in Datei
+            values = list()
+            fertig=False
+            while not fertig:
+                with open("highscore.csv") as hs_datei:
+                    zeilennummer=0
+                    csv_reader_object=csv.reader(hs_datei)
+                    for row in csv_reader_object:
+                        if zeilennummer==0:
+                            print("Zeile 0")
+                            zeilennummer+=1
+                        else:
+                            neues_element=tuple(row)
+                            values.append(neues_element)
+                            zeilennummer+=1
+                values.append(new_score)
+                print(values)
+                dtype=[("score", int), ("name", 'U3')]
+                highscore=np.asanyarray(values, dtype=dtype)
+                print(highscore)
+                highscore=np.sort(highscore, axis=0, order="score", stable=True)
+                print(highscore)
+                highscore=highscore[::-1]
+                print("Sorted:\n",highscore)
+                with open("highscore.csv", "w", newline="") as hs_datei:
+                    writer=csv.writer(hs_datei)
+                    writer.writerow(["score","name"])
+                    for i in range(len(highscore)):
+                        writer.writerow(highscore[i])
+                fertig=True
+                
+            #Grafische Ausgabe der Highscores
+            fenster.fill(WEISS)
+            text_hs="Highscores:"
+            text_hs=font2.render(text_hs, True, SCHWARZ)
+            fenster.blit(text_hs, [50, 20])
+            for i in range(len(highscore)):
+                highscore_ausgabe=str(highscore[i])
+                text_hs_ausgabe=font2.render(highscore_ausgabe, True, SCHWARZ)
+                fenster.blit(text_hs_ausgabe,[50, 20*i+40])
+                pygame.display.flip()
+                
+            #Warten auf Input und Neustart des Spiels
+            text_esc="Press ESC to quit"
+            text_space="or Space to restart"
+            text_esc=font2.render(text_esc, True, SCHWARZ)
+            text_space=font2.render(text_space, True, SCHWARZ)
+            fenster.blit(text_esc, [20, 360])
+            fenster.blit(text_space, [20, 380])
+            pygame.display.flip()
+            steinaktiv=False
+            spiel_verloren=True
+            pygame.event.clear()
+            while spiel_verloren==True:
+                pygame.init()
+                event = pygame.event.wait()
+                if event.type == QUIT or event.type==pygame.KEYDOWN and event.key==pygame.K_ESCAPE:
+                    spielaktiv=False
+                    pygame.quit()
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == K_SPACE:
+                        print("Spiel Neustart")
+                        spielfeld=np.zeros((H,W), dtype=int)
+                        fenster.fill(WEISS)
+                        spiel_verloren=False
+                        spiel_aktiv=True
+                        stein_aktiv=True
+                        punkte=0
+                        FPS=1
+                        new_score=[]
+                        
+                        
+
     #Fenster aktualisieren
         pygame.display.flip()
         clock.tick(FPS)
